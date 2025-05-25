@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Homework Tracker - St. Joseph’s Asharadhama ICSE School</title>
+<style>
+  body {
+    font-family: 'Georgia', serif;
+    background: #fdf6e3;
+    color: #333;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    justify-content: center;
+    min-height: 100vh;
+  }
+  .container {
+    width: 90%;
+    max-width: 800px;
+    background: #fff;
+    padding: 30px 40px;
+    margin: 40px 0;
+    border-radius: 12px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+  }
+  header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 25px;
+  }
+  header img {
+    height: 60px;
+    margin-right: 15px;
+  }
+  header h1 {
+    font-size: 1.8rem;
+    color: #2c3e50;
+    margin: 0;
+  }
+  label {
+    display: block;
+    margin-top: 15px;
+    font-weight: bold;
+  }
+  input[type="text"], input[type="date"], select, textarea {
+    width: 100%;
+    padding: 10px;
+    margin-top: 6px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+    font-family: 'Georgia', serif;
+    font-size: 1rem;
+    box-sizing: border-box;
+  }
+  textarea {
+    resize: vertical;
+    min-height: 80px;
+    background: #fff8f0;
+  }
+  button {
+    margin-top: 20px;
+    padding: 12px 25px;
+    background: #2c3e50;
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background-color 0.25s ease;
+  }
+  button:hover {
+    background: #34495e;
+  }
+  table {
+    width: 100%;
+    margin-top: 30px;
+    border-collapse: collapse;
+  }
+  th, td {
+    padding: 12px 15px;
+    border-bottom: 1px solid #ddd;
+    text-align: left;
+    font-size: 0.95rem;
+    vertical-align: top;
+  }
+  th {
+    background: #f0e5d8;
+    color: #2c3e50;
+  }
+  /* Export PDF button style */
+  #exportPdfBtn {
+    background: #2980b9;
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    padding: 12px 25px;
+    cursor: pointer;
+    margin-top: 10px;
+  }
+  #exportPdfBtn:hover {
+    background: #1f618d;
+  }
+</style>
+
+<!-- jsPDF library -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+</head>
+<body>
+  <div class="container">
+    <header>
+      <img src="logo.png" alt="School Logo" id="schoolLogo" />
+      <h1>St. Joseph’s Asharadhama ICSE School</h1>
+    </header>
+
+    <form id="homeworkForm">
+      <label for="assignedDate">Date Assigned:</label>
+      <input type="date" id="assignedDate" name="assignedDate" required />
+
+      <label for="day">Day:</label>
+      <input type="text" id="day" name="day" readonly />
+
+      <label for="classGrade">Class/Grade:</label>
+      <input type="text" id="classGrade" name="classGrade" placeholder="e.g. 7A" required />
+
+      <label for="subject">Subject:</label>
+      <input type="text" id="subject" name="subject" placeholder="e.g. Mathematics" required />
+
+      <label for="description">Description:</label>
+      <textarea id="description" name="description" placeholder="Describe the homework/task" required></textarea>
+
+      <button type="submit">Add Homework</button>
+    </form>
+
+    <table id="homeworkTable" aria-label="Homework list">
+      <thead>
+        <tr>
+          <th>Date Assigned</th>
+          <th>Day</th>
+          <th>Class/Grade</th>
+          <th>Subject</th>
+          <th>Description</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <button id="exportPdfBtn">Export as PDF</button>
+  </div>
+
+<script>
+  const form = document.getElementById('homeworkForm');
+  const assignedDateInput = document.getElementById('assignedDate');
+  const dayInput = document.getElementById('day');
+  const tbody = document.querySelector('#homeworkTable tbody');
+
+  function getDayName(dateString) {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { weekday: 'long' });
+  }
+
+  function updateDay() {
+    if (assignedDateInput.value) {
+      dayInput.value = getDayName(assignedDateInput.value);
+    } else {
+      dayInput.value = '';
+    }
+  }
+
+  window.onload = () => {
+    const today = new Date().toISOString().split('T')[0];
+    assignedDateInput.value = today;
+    updateDay();
+    loadHomework();
+  };
+
+  assignedDateInput.addEventListener('change', updateDay);
+
+  function getHomeworkList() {
+    return JSON.parse(localStorage.getItem('homeworkList') || '[]');
+  }
+
+  function saveHomeworkList(list) {
+    localStorage.setItem('homeworkList', JSON.stringify(list));
+  }
+
+  function renderHomework() {
+    const list = getHomeworkList();
+    tbody.innerHTML = '';
+
+    if (list.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#888;">No homework assigned yet.</td></tr>';
+      return;
+    }
+
+    list.forEach((hw, index) => {
+      const tr = document.createElement('tr');
+
+      tr.innerHTML = `
+        <td>${hw.assignedDate}</td>
+        <td>${hw.day}</td>
+        <td>${hw.classGrade}</td>
+        <td>${hw.subject}</td>
+        <td>${hw.description}</td>
+        <td>
+          <button onclick="deleteHomework(${index})" style="background:#e74c3c; color:#fff; border:none; border-radius:5px; padding:5px 10px; cursor:pointer;">
+            Delete
+          </button>
+        </td>
+      `;
+
+      tbody.appendChild(tr);
+    });
+  }
+
+  function deleteHomework(index) {
+    if (confirm('Are you sure you want to delete this homework?')) {
+      const list = getHomeworkList();
+      list.splice(index, 1);
+      saveHomeworkList(list);
+      renderHomework();
+    }
+  }
+
+  form.addEventListener('submit', e => {
+    e.preventDefault();
+
+    const newHomework = {
+      assignedDate: form.assignedDate.value,
+      day: form.day.value,
+      classGrade: form.classGrade.value.trim(),
+      subject: form.subject.value.trim(),
+      description: form.description.value.trim()
+    };
+
+    const list = getHomeworkList();
+    list.push(newHomework);
+    saveHomeworkList(list);
+    form.reset();
+
+    // Reset date & day to today after form submit
+    const today = new Date().toISOString().split('T')[0];
+    assignedDateInput.value = today;
+    updateDay();
+
+    renderHomework();
+  });
+
+  function loadHomework() {
+    renderHomework();
+  }
+
+  // Export PDF button with wrapped description
+  document.getElementById('exportPdfBtn').addEventListener('click', () => {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+
+    const list = getHomeworkList();
+    if (list.length === 0) {
+      alert('No homework data to export!');
+      return;
+    }
+
+    doc.setFontSize(18);
+    doc.text("Homework Tracker - St. Joseph’s Asharadhama ICSE School", 10, 15);
+
+    const columns = ["Date Assigned", "Day", "Class/Grade", "Subject", "Description"];
+    const colWidths = [30, 25, 30, 30, 70];
+    const startX = 10;
+    let y = 25;
+    const lineHeight = 7;
+
+    doc.setFontSize(12);
+    // Print headers
+    let x = startX;
+    columns.forEach((col, i) => {
+      doc.text(col, x, y);
+      x += colWidths[i];
+    });
+
+    y += lineHeight;
+
+    list.forEach(hw => {
+      x = startX;
+
+      doc.text(hw.assignedDate, x, y);
+      x += colWidths[0];
+
+      doc.text(hw.day, x, y);
+      x += colWidths[1];
+
+      doc.text(hw.classGrade, x, y);
+      x += colWidths[2];
+
+      doc.text(hw.subject, x, y);
+      x += colWidths[3];
+
+      // Wrap description text
+      const descLines = doc.splitTextToSize(hw.description, colWidths[4] - 2);
+      doc.text(descLines, x, y);
+
+      const height = descLines.length * lineHeight;
+      y += height;
+
+      // Add page break if near bottom
+      if (y > 280) {
+        doc.addPage();
+        y = 20;
+      }
+    });
+
+    doc.save("homework_data.pdf");
+  });
+</script>
+</body>
+</html>
